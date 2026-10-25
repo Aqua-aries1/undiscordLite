@@ -11,8 +11,14 @@ Undiscord Lite 的 Vencord userplugin 版：批量删除 Discord 消息（搜索
 ## 安装
 
 需要 **源码构建的 Vencord**（installer 版装不了 userplugin）。把本目录整个放到 Vencord
-仓库的 `src/userplugins/undiscordLite`（`git clone` 到该路径，或解压 zip 后复制过去都行），
-然后 `pnpm build` 并重启 Discord 即生效。
+仓库的 `src/userplugins/undiscordLite`：
+
+```bash
+git clone https://github.com/Aqua-aries1/undiscordLite src/userplugins/undiscordLite
+pnpm build
+```
+
+然后重启 Discord 即生效。
 
 - Vencord：**1.15.x 及以后**（这版是按 1.15.13 的 API 写的；更早的版本里 toast / 弹出菜单的
   调用形态不一样，插件会静默失效而不是报错）。

@@ -45,15 +45,32 @@ SOFTWARE.
 本项目的八个模块实际是从 **Undiscord Lite 1.3.0-zh** 这个用户脚本机械切分出来的
 （`tools/split-undiscord.mjs`），并非直接取自上面的原始仓库。
 
-- 版本：1.3.0-zh（用户脚本，即 `Undiscord-Lite-1.3.0-zh.user.js`）
-- 作者署名：OrbitalCheese
-- 许可：MIT
-- 原仓库：**已下线**（原地址返回 404，账号仍在但已无公开仓库），因此这里不写链接，
-  也不臆造其版权行的逐字原文。
+- 文件：`Undiscord-Lite-1.3.0-zh.user.js`（v1.3.0，337515 B）
+- 许可：MIT（脚本自述）
+- 原仓库：**已下线**（`@namespace` / `@homepageURL` 指向的
+  `https://github.com/OrbitalCheese/undiscord-lite` 现在返回 404，账号 `OrbitalCheese`
+  仍在但已无公开仓库），所以这里不把它当活链接用，只作来源记录。
 
-该用户脚本同样是 MIT 授权，适用与上面相同的 MIT 许可正文；按 MIT 的要求，本项目在
-每个切分出来的源文件顶部保留了「Ported from Undiscord Lite 1.3.0-zh (userscript, MIT,
-by OrbitalCheese)」这一署名行，并在本文档保留其上游 victornpb/undiscord 的完整版权声明。
+脚本自己的元数据块（逐字）：
+
+```
+// ==UserScript==
+// @name        Undiscord Lite 中文优化版
+// @description Discord 消息批量删除工具（中文界面、响应式布局与安全日志输出）。
+// @version     1.3.0
+// @namespace   https://github.com/OrbitalCheese/undiscord-lite
+// @grant       none
+// @run-at      document-idle
+// @noframes
+// @author      OrbitalCheese
+// @license     MIT
+// @homepageURL https://github.com/OrbitalCheese/undiscord-lite
+// @supportURL  https://github.com/OrbitalCheese/undiscord-lite/issues
+// ==/UserScript==
+```
+
+该脚本与上面的 `victornpb/undiscord` 共享代码谱系（例：`msToHMS` 的实现逐字节相同），
+但它的头部没有保留后者的版权声明；本项目的文件头与本文档补上了这条归属。
 
 ## 3. Vencord
 
