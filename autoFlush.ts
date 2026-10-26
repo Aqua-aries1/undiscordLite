@@ -34,7 +34,7 @@
 import { ChannelStore, FluxDispatcher, MessageStore, UserStore } from "@webpack/common";
 
 import { authHeaders, channelCandidates, getToken, readLocalStorage, writeLocalStorage } from "./helpers";
-import { channelInFlushScope, parseIdList } from "./scope";
+import { channelInFlushScope, clampDelaySec, parseDelayMap, parseIdList, resolveDelaySec } from "./scope";
 
 const API_BASE = "https://discord.com/api/v9";
 const RETRY_MS = 1500; // re-arm interval while a message is still sending
@@ -49,6 +49,11 @@ const PENDING_KEY = "UndiscordLite-pendingFlush";
 interface FlushConfig {
     enabled: boolean;
     delaySec: number;
+    // Per-channel overrides, `channelId:seconds` (scope.ts owns the format). A
+    // channel (or thread) named here ignores `delaySec`; a thread without its own
+    // entry inherits its parent channel's. Deliberately a separate field rather
+    // than a rewrite of delaySec: the global number stays the global number.
+    channelDelays: string;
     // Two lists per layer — shape and composition live in scope.ts.
     serverWhitelist: string; // CSV of guild IDs that flush even so; "@me" means DMs; empty = no restriction
     serverBlacklist: string; // CSV of guild IDs that never flush
@@ -63,7 +68,7 @@ interface Scheduled {
     deleteAt: number; // wall-clock ms when the message is due; persisted so a restart can pick the plan back up
 }
 
-let getConfig: () => FlushConfig = () => ({ enabled: false, delaySec: 60, serverWhitelist: "", serverBlacklist: "", channelWhitelist: "", channelBlacklist: "", resume: true });
+let getConfig: () => FlushConfig = () => ({ enabled: false, delaySec: 60, channelDelays: "", serverWhitelist: "", serverBlacklist: "", channelWhitelist: "", channelBlacklist: "", resume: true });
 let subscribed = false;
 const scheduled = new Map<string, Scheduled>();
 // When the plugin was (re)started, minus a clock-slack window. MESSAGE_CREATE
@@ -82,14 +87,6 @@ const DELETED_TTL_MS = 600000;
 /** Injected by the plugin entry so this module reads the live settings store without importing it (avoids an import cycle). */
 export function configureAutoFlush(fn: () => FlushConfig) {
     getConfig = fn;
-}
-
-function clampDelaySec(sec: number): number {
-    // A cleared/garbage number field in settings lands as NaN — setTimeout with
-    // NaN fires immediately, which would flash-delete everything. Treat it as
-    // the factory default instead.
-    if (!Number.isFinite(sec)) return 60;
-    return Math.min(Math.max(sec, 1), 86400);
 }
 
 function currentUserId(): string | null {
@@ -203,7 +200,9 @@ export function flushStatusLine(): string {
 
     const resumeBit = cfg.resume ? "" : " · 重启后不补删";
     const server = layer(cfg.serverWhitelist, cfg.serverBlacklist, "服务器", "（含私信）");
-    return `自动冲水：开 · 延时 ${clampDelaySec(cfg.delaySec)}s · 服务器层：${server} · 频道层：${channel} · 待删 ${scheduled.size} 条${resumeBit}`;
+    const overrides = Object.keys(parseDelayMap(cfg.channelDelays)).length;
+    const delayBit = `${clampDelaySec(cfg.delaySec)}s${overrides ? `（另 ${overrides} 个频道/子区自定义）` : ""}`;
+    return `自动冲水：开 · 延时 ${delayBit} · 服务器层：${server} · 频道层：${channel} · 待删 ${scheduled.size} 条${resumeBit}`;
 }
 
 function schedule(channelId: string, messageId: string, delayMs: number) {
@@ -315,7 +314,13 @@ function onCreate(e: any) {
     // moment this event arrived) is the anchor, so a message from a phone that
     // syncs late still lands where it would have; the arrival time is the
     // fallback only when the event carries no timestamp.
-    const delayMs = clampDelaySec(cfg.delaySec) * 1000;
+    //
+    // Which delay: this channel's override, else its parent channel's, else the
+    // global number. Resolved per message rather than per session, so flipping a
+    // channel's override takes effect on the very next message without touching
+    // the timers already armed (those keep the promise they were made under).
+    const { seconds } = resolveDelaySec(cfg.channelDelays, channelCandidates(m.channel_id), cfg.delaySec);
+    const delayMs = seconds * 1000;
     const baseMs = m.timestamp ? Date.parse(m.timestamp) : NaN;
     const sentAt = Number.isFinite(baseMs) ? baseMs : Date.now();
 

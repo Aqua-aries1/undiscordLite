@@ -62,8 +62,16 @@ export const settings = definePluginSettings({
     autoFlushDelay: {
         type: OptionType.NUMBER,
         displayName: "冲水延时（秒）",
-        description: "发出后多久删除，1–86400",
+        description: "发出后多久删除，1–86400。单个频道/子区可以在下一项或右键菜单里另设",
         default: 60,
+        restartNeeded: false
+    },
+    autoFlushChannelDelays: {
+        type: OptionType.STRING,
+        displayName: "频道冲水时长（单独指定）",
+        description: "给单个频道/子区设别的延时，不动上面的全局值；没列出的照旧用全局。格式「频道ID:秒」，多个用逗号或空格分隔。右键频道 →「自动冲水」→「本频道冲水时长」能设常用值。子区没单独设时跟随父频道",
+        placeholder: "例如 123456789012345678:30, 234567890123456789:600",
+        default: "",
         restartNeeded: false
     },
     autoFlushServerWhitelist: {
@@ -198,6 +206,7 @@ export default definePlugin({
         configureAutoFlush(() => ({
             enabled: settings.store.autoFlush,
             delaySec: settings.store.autoFlushDelay,
+            channelDelays: settings.store.autoFlushChannelDelays,
             serverWhitelist: settings.store.autoFlushServerWhitelist,
             serverBlacklist: settings.store.autoFlushServerBlacklist,
             channelWhitelist: settings.store.autoFlushChannelWhitelist,

@@ -197,6 +197,102 @@ export function flipScope(
     return { white: w, black: b, clearedRelatives };
 }
 
+// ---- per-channel flush delay -------------------------------------------------
+
+/**
+ * Delay overrides live in ONE string setting: `channelId:seconds` entries,
+ * separated by the same characters the ID lists accept. A record would read
+ * better, but Vencord settings only speak scalars — and a string keeps the value
+ * hand-editable in the settings box. The right-click menu is the fast path; the
+ * box is the exact one, and both write the same field.
+ */
+export const DELAY_MIN_SEC = 1;
+export const DELAY_MAX_SEC = 86400;
+
+/**
+ * Seconds → a value setTimeout can be trusted with. A cleared or garbage number
+ * field lands as NaN, and `setTimeout(NaN)` fires immediately — which would
+ * flash-delete everything. Non-finite therefore means "the factory default",
+ * not "zero".
+ */
+export function clampDelaySec(sec: number): number {
+    if (!Number.isFinite(sec)) return 60;
+    return Math.min(Math.max(Math.round(sec), DELAY_MIN_SEC), DELAY_MAX_SEC);
+}
+
+/** `"111:30,222:600"` → `{111: 30, 222: 600}`. Anything unparsable is skipped, never fatal. */
+export function parseDelayMap(text: string | undefined | null): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const token of String(text ?? "").split(/[\s,，、]+/)) {
+        if (!token) continue;
+        // Snowflakes are 17–20 digits; the separator is `:` or `=` so a stray
+        // pasted `id: id` pair does not silently become a 0-second override.
+        const m = /^(\d{17,20})[:=](\d+)$/.exec(token);
+        if (!m) continue;
+        const sec = Number(m[2]);
+        if (Number.isFinite(sec) && sec >= DELAY_MIN_SEC && sec <= DELAY_MAX_SEC) out[m[1]] = Math.round(sec);
+    }
+    return out;
+}
+
+/** The one shape a written map takes: sorted by ID, single commas. */
+export function formatDelayMap(map: Record<string, number>): string {
+    return Object.keys(map).sort().map(id => `${id}:${map[id]}`).join(",");
+}
+
+/** Set (or clear, with `null`) one channel's override. Everything else is preserved. */
+export function setChannelDelay(text: string | undefined | null, channelId: string, seconds: number | null): string {
+    const map = parseDelayMap(text);
+    if (!channelId) return formatDelayMap(map);
+    if (seconds === null) delete map[channelId];
+    else map[channelId] = clampDelaySec(seconds);
+    return formatDelayMap(map);
+}
+
+export interface ResolvedDelay {
+    seconds: number;
+    /** Which level answered — the menu labels the row with this. */
+    source: "channel" | "parent" | "global";
+    matchedId?: string;
+}
+
+/**
+ * The delay for one channel: its own override, else its parent's, else global.
+ *
+ * `candidates` is [channel, parent?] — the same shape the scope checks use, so a
+ * thread follows its parent channel and a parent's override covers the whole
+ * subtree. A thread with its own entry keeps it (that is how one thread gets a
+ * different delay from its siblings).
+ */
+export function resolveDelaySec(
+    text: string | undefined | null,
+    candidates: string[],
+    globalSec: number
+): ResolvedDelay {
+    const map = parseDelayMap(text);
+    const ids = candidates.filter((id): id is string => !!id);
+    const [self, ...relatives] = ids;
+    if (self && map[self] != null) return { seconds: map[self], source: "channel", matchedId: self };
+    for (const id of relatives) {
+        if (map[id] != null) return { seconds: map[id], source: "parent", matchedId: id };
+    }
+    return { seconds: clampDelaySec(globalSec), source: "global" };
+}
+
+/** `45` → `45 秒`; `600` → `10 分钟`; `5400` → `1 小时 30 分`. */
+export function describeDelay(sec: number): string {
+    const s = clampDelaySec(sec);
+    if (s < 60) return `${s} 秒`;
+    if (s < 3600) {
+        const m = Math.floor(s / 60);
+        const rest = s % 60;
+        return rest ? `${m} 分 ${rest} 秒` : `${m} 分钟`;
+    }
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    return m ? `${h} 小时 ${m} 分` : `${h} 小时`;
+}
+
 // ---- one-time migration from the old "mode + one list" server scope ----------
 
 /**

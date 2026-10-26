@@ -50,16 +50,33 @@
 // reads ambiguously for this feature, and the user has said so twice.
 
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
+import { debounce } from "@shared/debounce";
 import { ChannelStore, GuildStore, Menu, showToast, UserStore } from "@webpack/common";
+import type { ReactNode } from "react";
 
 import { channelCandidates, log } from "./helpers";
 import { settings } from "./index";
-import { channelInFlushScope, flipScope, listInScope, ScopeLayer } from "./scope";
+import {
+    channelInFlushScope,
+    clampDelaySec,
+    describeDelay,
+    flipScope,
+    listInScope,
+    parseDelayMap,
+    resolveDelaySec,
+    ScopeLayer,
+    setChannelDelay
+} from "./scope";
 
 const REPEAT_MODES = [
     { value: "send", label: "直接发出" },
     { value: "compose", label: "预填充" },
 ] as const;
+
+// The values people actually pick. Anything else goes through the slider
+// (1 s – 1 h) or the settings box (up to 24 h); both write the same field, so
+// there is no second source of truth to drift.
+const DELAY_PRESETS = [10, 30, 60, 300, 900, 1800, 3600, 21600, 86400] as const;
 
 function channelIdOf(props: any): string | null {
     return props?.channel?.id ?? props?.message?.channel_id ?? null;
@@ -193,6 +210,84 @@ function flushToggle(opts: ToggleOpts, layer: ScopeLayer) {
     );
 }
 
+/**
+ * Per-channel flush delay, as a submenu of the channel group.
+ *
+ * Same rules as every other row here: a plain array of Menu items (never a
+ * wrapper component), values read live while the tree is built, and every write
+ * funnelled through scope.ts so node can check the parsing instead of us
+ * trusting a regex in two places.
+ *
+ * Precedence is channel → parent → global, matching the scope checks: a thread
+ * with no entry of its own inherits its parent channel's, and a parent's entry
+ * covers its whole subtree. That is why the row says WHICH level answered — a
+ * thread labelled 跟随父频道 is telling you the number came from somewhere else.
+ */
+function delayRows(channelId: string, globalSec: number): ReactNode[] {
+    const map = parseDelayMap(settings.store.autoFlushChannelDelays);
+    const own = map[channelId];
+    const group = `undiscordlite-delay-${channelId}`;
+    const write = (sec: number | null) => {
+        settings.store.autoFlushChannelDelays = setChannelDelay(settings.store.autoFlushChannelDelays, channelId, sec);
+    };
+
+    const rows: ReactNode[] = [
+        <Menu.MenuRadioItem
+            key="global"
+            group={group}
+            id={`${group}-global`}
+            label={`跟随全局（${describeDelay(globalSec)}）`}
+            checked={own == null}
+            action={event => {
+                write(null);
+                toast(`本频道改用全局延时：${describeDelay(globalSec)}`);
+                refreshMenuAfterClick(event);
+            }}
+        />
+    ];
+
+    for (const sec of DELAY_PRESETS) {
+        rows.push(
+            <Menu.MenuRadioItem
+                key={sec}
+                group={group}
+                id={`${group}-${sec}`}
+                label={describeDelay(sec)}
+                checked={own === sec}
+                action={event => {
+                    write(sec);
+                    toast(`本频道冲水延时：${describeDelay(sec)}`);
+                    refreshMenuAfterClick(event);
+                }}
+            />
+        );
+    }
+
+    rows.push(<Menu.MenuSeparator key="sep" />);
+    rows.push(
+        <Menu.MenuControlItem
+            key="custom"
+            id={`${group}-custom`}
+            label="自定义"
+            control={(props, ref) => (
+                <Menu.MenuSliderControl
+                    ref={ref}
+                    {...props}
+                    minValue={1}
+                    maxValue={3600}
+                    value={Math.min(clampDelaySec(own ?? globalSec), 3600)}
+                    // Dragging fires per pixel; writing the store on each one would
+                    // churn the settings file for a value the user is still choosing.
+                    onChange={debounce((value: number) => write(value), 200)}
+                    renderValue={(value: number) => describeDelay(value)}
+                />
+            )}
+        />
+    );
+
+    return rows;
+}
+
 const patch: NavContextMenuPatchCallback = (children, props) => {
     if (!props) return;
     if (children.some(c => c?.props?.id === "undiscordlite-autoflush")) return;
@@ -209,12 +304,23 @@ const patch: NavContextMenuPatchCallback = (children, props) => {
     // defaults — so normalise here, or the radio row would show nothing selected
     // while the code actually behaves as 直接发出.
     const repeatMode = settings.store.quickRepeatMode === "compose" ? "compose" : "send";
+    // The global delay is the number every channel without an override uses; the
+    // delay row shows it as the fallback value rather than as "the" value.
+    const globalDelay = settings.store.autoFlushDelay;
+    // Which level answers for THIS channel — own entry, parent channel, or the
+    // global number. Computed once so the label and the rows cannot disagree.
+    const delayNow = channelId
+        ? resolveDelaySec(settings.store.autoFlushChannelDelays, channelCandidates(channelId), globalDelay)
+        : null;
+    const delaySource = delayNow?.source === "channel"
+        ? "自定义"
+        : delayNow?.source === "parent" ? "跟随父频道" : "跟随全局";
 
     children.push(
         <Menu.MenuSeparator />,
         // NOTE: the body must stay a plain tree of Menu items — see REACTIVITY above.
         <Menu.MenuItem id="undiscordlite-autoflush" label="自动冲水">
-            {channelId && (
+            {channelId && delayNow && (
                 <Menu.MenuGroup label={describeChannel(channelId)}>
                     {flushToggle({
                         key: "ch",
@@ -234,6 +340,12 @@ const patch: NavContextMenuPatchCallback = (children, props) => {
                         getBlack: () => settings.store.autoFlushChannelBlacklist,
                         setBlack: csv => { settings.store.autoFlushChannelBlacklist = csv; },
                     }, "channel")}
+                    <Menu.MenuItem
+                        id={`undiscordlite-delay-${channelId}`}
+                        label={`本频道冲水时长：${describeDelay(delayNow.seconds)}（${delaySource}）`}
+                    >
+                        {delayRows(channelId, globalDelay)}
+                    </Menu.MenuItem>
                 </Menu.MenuGroup>
             )}
 
