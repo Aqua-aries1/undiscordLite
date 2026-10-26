@@ -50,7 +50,6 @@
 // reads ambiguously for this feature, and the user has said so twice.
 
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
-import { debounce } from "@shared/debounce";
 import { ChannelStore, GuildStore, Menu, showToast, UserStore } from "@webpack/common";
 import type { ReactNode } from "react";
 
@@ -58,7 +57,6 @@ import { channelCandidates, log } from "./helpers";
 import { settings } from "./index";
 import {
     channelInFlushScope,
-    clampDelaySec,
     describeDelay,
     flipScope,
     listInScope,
@@ -73,9 +71,12 @@ const REPEAT_MODES = [
     { value: "compose", label: "预填充" },
 ] as const;
 
-// The values people actually pick. Anything else goes through the slider
-// (1 s – 1 h) or the settings box (up to 24 h); both write the same field, so
-// there is no second source of truth to drift.
+// The values people actually pick, and the whole custom path. Anything not on
+// this list is typed into the settings box 「频道冲水时长」 (`频道ID:秒`) — there
+// used to be a 1 s – 1 h slider here, which a pixel walked ~18 s at, could not
+// express 45 s or anything past an hour, and had no keyboard at all. A dialog
+// with a text box was built and rejected too: one click to the presets beats
+// opening a modal for a number, and the settings page already takes any value.
 const DELAY_PRESETS = [10, 30, 60, 300, 900, 1800, 3600, 21600, 86400] as const;
 
 function channelIdOf(props: any): string | null {
@@ -222,6 +223,10 @@ function flushToggle(opts: ToggleOpts, layer: ScopeLayer) {
  * with no entry of its own inherits its parent channel's, and a parent's entry
  * covers its whole subtree. That is why the row says WHICH level answered — a
  * thread labelled 跟随父频道 is telling you the number came from somewhere else.
+ *
+ * The rows are 跟随全局 + nine presets, and that is deliberately the whole set:
+ * an exact number lives in the settings box 「频道冲水时长」, which takes the same
+ * `频道ID:秒` value and has no widget to mis-click. See DELAY_PRESETS.
  */
 function delayRows(channelId: string, globalSec: number): ReactNode[] {
     const map = parseDelayMap(settings.store.autoFlushChannelDelays);
@@ -262,28 +267,6 @@ function delayRows(channelId: string, globalSec: number): ReactNode[] {
             />
         );
     }
-
-    rows.push(<Menu.MenuSeparator key="sep" />);
-    rows.push(
-        <Menu.MenuControlItem
-            key="custom"
-            id={`${group}-custom`}
-            label="自定义"
-            control={(props, ref) => (
-                <Menu.MenuSliderControl
-                    ref={ref}
-                    {...props}
-                    minValue={1}
-                    maxValue={3600}
-                    value={Math.min(clampDelaySec(own ?? globalSec), 3600)}
-                    // Dragging fires per pixel; writing the store on each one would
-                    // churn the settings file for a value the user is still choosing.
-                    onChange={debounce((value: number) => write(value), 200)}
-                    renderValue={(value: number) => describeDelay(value)}
-                />
-            )}
-        />
-    );
 
     return rows;
 }
