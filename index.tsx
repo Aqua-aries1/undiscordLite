@@ -10,15 +10,16 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import definePlugin, { OptionType } from "@utils/types";
 import type { ReactNode } from "react";
 
-import { configureAutoFlush, startAutoFlush, stopAutoFlush } from "./autoFlush";
-import { setupScopeContextMenu, teardownScopeContextMenu } from "./contextMenu";
-import { OpenUndiscordButton } from "./HeaderButton";
-import { log, probeAuth } from "./helpers";
-import { parseCustomIcon } from "./iconChoice";
-import { setupQuickRepeat, teardownQuickRepeat } from "./quickRepeat";
-import { migrateLegacyServerLists } from "./scope";
-import initUI, { togglePanel } from "./ui";
-import { startChineseLayer } from "./zhLayer";
+import { log, probeAuth } from "./engine/helpers";
+import { configureAutoFlush, startAutoFlush, stopAutoFlush } from "./flush/autoFlush";
+import { setupScopeContextMenu, teardownScopeContextMenu } from "./flush/contextMenu";
+import { migrateLegacyServerLists } from "./flush/scope";
+import { OpenUndiscordButton } from "./panel/HeaderButton";
+import initUI, { togglePanel } from "./panel/ui";
+import { startChineseLayer } from "./panel/zhLayer";
+import { parseCustomIcon } from "./repeat/iconChoice";
+import { setupQuickRepeat, teardownQuickRepeat } from "./repeat/quickRepeat";
+import { UpdateRow } from "./update/UpdateRow";
 
 let disposeUI: (() => void) | null = null;
 
@@ -172,6 +173,15 @@ export const settings = definePluginSettings({
         placeholder: "例如 🗣 或 <:kusa:123456789012345678>",
         default: "",
         restartNeeded: false
+    },
+    // Version row. Deliberately the weakest possible update story: it compares
+    // the version baked into this build with the published version.json and
+    // stops there — no download, no code swap. A userplugin is compiled into the
+    // bundle, so "auto update" would mean rewriting dist/ behind the client's
+    // back; see update/updateCheck.ts.
+    version: {
+        type: OptionType.COMPONENT,
+        component: UpdateRow
     },
 }, {
     quickRepeatCustomIcon: {

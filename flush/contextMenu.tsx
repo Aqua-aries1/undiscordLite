@@ -53,8 +53,8 @@ import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatc
 import { ChannelStore, GuildStore, Menu, showToast, UserStore } from "@webpack/common";
 import type { ReactNode } from "react";
 
-import { channelCandidates, log } from "./helpers";
-import { settings } from "./index";
+import { channelCandidates, log } from "../engine/helpers";
+import { settings } from "../index";
 import {
     channelInFlushScope,
     describeDelay,

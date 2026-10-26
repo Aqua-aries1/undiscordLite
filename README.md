@@ -25,6 +25,35 @@ pnpm build
 - 依赖 `MessagePopoverAPI` 这个内置 API 插件（Vencord 会在启用时自动打开）。
 - 插件默认启用；不需要填 token，令牌从 Discord 自己的登录态读取。
 
+## 目录结构
+
+```
+undiscordLite/
+├─ index.tsx            入口：插件定义 + 设置项
+├─ version.json         版本号（编译进包，同时就是公开出去供比对的那份）
+├─ flush/               自动冲水：排期、作用域判定、右键菜单
+├─ repeat/              一键复读按钮 + 图标解析
+├─ panel/               清理面板（上游用户脚本切分而来）
+├─ engine/              搜索 / 删除 / 导出导入（上游用户脚本切分而来）
+├─ update/              版本行：只比对、只提示
+└─ tools/               从上游 .user.js 重新切分的脚本
+```
+
+`panel/` 与 `engine/` 里的代码是从上游 Undiscord Lite 单文件用户脚本机械切出来的
+（见 `tools/split-undiscord.mjs`），文件划分沿用上游的模块边界，不是我们设计的；
+`flush/`、`repeat/`、`update/`、`index.tsx` 是这个移植新增的。
+
+## 版本与更新
+
+插件设置页最下面一行是「版本 vX.Y.Z」。打开设置页时会去 GitHub 读一次
+`version.json`（几秒钟、一次请求，不轮询、不后台跑），告诉你远端是不是更新：
+
+- **只提示，不安装。** userplugin 是构建期编译进 `dist/vencordDesktopRenderer.js` 的，
+  运行时改不了自己；所以「自动更新」在小插件里只能是假的，这里不做。
+- 有新版时会显示新版说明和更新命令：在插件目录 `git pull`，回 Vencord 目录 `pnpm build`，
+  再重启 Discord。
+- 连不上 GitHub（离线、被墙、限流）只显示一行提示，不影响插件的任何功能。
+
 ## 功能
 
 ### 一键清理 · 自己的近期消息

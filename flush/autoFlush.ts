@@ -33,7 +33,7 @@
 
 import { ChannelStore, FluxDispatcher, MessageStore, UserStore } from "@webpack/common";
 
-import { authHeaders, channelCandidates, getToken, readLocalStorage, writeLocalStorage } from "./helpers";
+import { authHeaders, channelCandidates, getToken, readLocalStorage, writeLocalStorage } from "../engine/helpers";
 import { channelInFlushScope, clampDelaySec, parseDelayMap, parseIdList, resolveDelaySec } from "./scope";
 
 const API_BASE = "https://discord.com/api/v9";

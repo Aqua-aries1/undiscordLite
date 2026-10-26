@@ -28,9 +28,9 @@ import { ClockIcon } from "@components/Icons";
 import { insertTextIntoChatInputBox, sendMessage } from "@utils/discord";
 import { ChannelStore, Constants, DraftType, MessageActions, PendingReplyStore, PermissionsBits, PermissionStore, RestAPI, SelectedChannelStore, showToast, SnowflakeUtils, UploadHandler, UserStore } from "@webpack/common";
 
-import { log } from "./helpers";
+import { log } from "../engine/helpers";
+import { settings } from "../index";
 import { parseCustomIcon } from "./iconChoice";
-import { settings } from "./index";
 
 /** Discord's own limit for the message body; nitro accounts get the larger one. */
 function sendLimit(): number {

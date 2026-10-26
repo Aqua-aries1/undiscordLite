@@ -22,11 +22,11 @@
 // ============================================================================
 
 const LOG_PREFIX = "[UNDISCORD-LITE]";
-import { flushStatusLine } from "./autoFlush";
-import UndiscordCore from "./core";
+import UndiscordCore from "../engine/core";
+import { ImportSource,parseExport, summarizeImport } from "../engine/exportImport";
+import { authHeaders, buildContentMatcher, buildExtensionMatcher, canManageMessages, createElm, escapeHTML, fillToken, getAuthorId, getChannelId, getGuildId, insertCss, log, msToHMS, parseCsvList, readLocalStorage, redactHtml, setLogFn, snowflakeToMs, writeLocalStorage } from "../engine/helpers";
+import { flushStatusLine } from "../flush/autoFlush";
 import Drag from "./drag";
-import { ImportSource,parseExport, summarizeImport } from "./exportImport";
-import { authHeaders, buildContentMatcher, buildExtensionMatcher, canManageMessages, createElm, escapeHTML, fillToken, getAuthorId, getChannelId, getGuildId, insertCss, log, msToHMS, parseCsvList, readLocalStorage, redactHtml, setLogFn, snowflakeToMs, writeLocalStorage } from "./helpers";
 import styles from "./styles";
 import undiscordTemplate from "./template";
 // ============================================================================
