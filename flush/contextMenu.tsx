@@ -77,7 +77,9 @@ const REPEAT_MODES = [
 // express 45 s or anything past an hour, and had no keyboard at all. A dialog
 // with a text box was built and rejected too: one click to the presets beats
 // opening a modal for a number, and the settings page already takes any value.
-const DELAY_PRESETS = [10, 30, 60, 300, 900, 1800, 3600, 21600, 86400] as const;
+// Presets start at 1 minute: 10 s / 30 s were never picked in practice and
+// only made the list longer.
+const DELAY_PRESETS = [60, 120, 180, 300, 900, 1800, 3600, 21600, 86400] as const;
 
 function channelIdOf(props: any): string | null {
     return props?.channel?.id ?? props?.message?.channel_id ?? null;
