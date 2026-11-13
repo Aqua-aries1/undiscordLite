@@ -14,9 +14,10 @@
 // skipped instead of firing a doomed request. Timers die with the plugin
 // (stop()) and with the setting being switched off.
 //
-// The delete moment is always `message timestamp + delay`. There is no
-// countdown footnote anymore — the old AI-flavoured stats line, its `:R`
-// timestamp and the engine/TPS knobs that fed it are gone.
+// The delete moment is `message timestamp + delay + up to 10 s of random
+// jitter` — see JITTER_MAX_MS. There is no countdown footnote anymore — the old
+// AI-flavoured stats line, its `:R` timestamp and the engine/TPS knobs that fed
+// it are gone.
 // Anchoring on the message timestamp (not the moment the event arrived) still
 // makes a message sent from a phone, arriving late through channel sync, land on
 // the schedule it would have had if this client had been sending.
@@ -45,6 +46,12 @@ const RETRY_AFTER_MS = 30000; // spacing for a DELETE that failed for a reason t
 // re-firing it would delete things nobody remembers.
 const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PENDING_KEY = "UndiscordLite-pendingFlush";
+// Extra delay drawn per message at schedule time, uniform in [0, 10 s). A fixed
+// delay fires every message on the same second offset (a 1-minute delay deleted
+// at exactly 60.0 s, message after message), which is both visibly mechanical
+// and lines up requests in one burst. Jitter only ever ADDS time: the configured
+// delay is a floor, never something we fire ahead of.
+const JITTER_MAX_MS = 10000;
 
 interface FlushConfig {
     enabled: boolean;
@@ -320,7 +327,9 @@ function onCreate(e: any) {
     // channel's override takes effect on the very next message without touching
     // the timers already armed (those keep the promise they were made under).
     const { seconds } = resolveDelaySec(cfg.channelDelays, channelCandidates(m.channel_id), cfg.delaySec);
-    const delayMs = seconds * 1000;
+    // Jitter is drawn once, here, and folded into the persisted deadline — a
+    // restart resumes the same moment instead of re-rolling a different one.
+    const delayMs = seconds * 1000 + Math.floor(Math.random() * JITTER_MAX_MS);
     const baseMs = m.timestamp ? Date.parse(m.timestamp) : NaN;
     const sentAt = Number.isFinite(baseMs) ? baseMs : Date.now();
 

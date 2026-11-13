@@ -63,7 +63,7 @@ export const settings = definePluginSettings({
     autoFlushDelay: {
         type: OptionType.NUMBER,
         displayName: "冲水延时（秒）",
-        description: "发出后多久删除，1–86400。单个频道/子区可以在下一项或右键菜单里另设",
+        description: "发出后多久删除，1–86400；实际还会再多 0–10 秒随机浮动（只延后、不提前）。单个频道/子区可以在下一项或右键菜单里另设",
         default: 60,
         restartNeeded: false
     },
